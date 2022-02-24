@@ -3,9 +3,9 @@
 ## 1 环境准备 
 
 ### 1.1 安装环境
-安装必要的依赖。
+使用backup中的requirements安装必要的依赖。
 ```
-pip3.7 install -r requirements.txt
+pip3.7 install -r backup/requirements.txt
 ```
 
 ### 1.2 获取，修改与安装开源模型代码  
@@ -39,7 +39,7 @@ export nnUNet_raw_data_base="/home/hyp/environment/nnUNet_raw_data_base"
 export nnUNet_preprocessed="/home/hyp/environment/nnUNet_preprocessed"
 export RESULTS_FOLDER="/home/hyp/environment/RESULTS_FOLDER"
 ```
-使用source命令来刷新环境变量，并且再载入NPU的相关环境变量。
+使用source命令来刷新环境变量。
 ```
 source ~/.bashrc
 ```
@@ -141,19 +141,6 @@ INFERENCE_INPUT_FOLDER = '/home/hyp/environment/input/'
 INFERENCE_OUTPUT_FOLDER = '/home/hyp/environment/output/'
 INFERENCE_SHAPE_PATH = '/home/hyp/environment/'
 ```
-【【【修改位置吧】】】接下来修改程序脚本中的路径。找到项目UNetPlusPlus下的clear2345.sh，该脚本用于删除310输出结果中后缀带有2、3、4、5的冗余.bin文件（保留后缀带有1的.bin文件），并将所有的.bin文件都移动到同一个文件夹下（例如放置于device0卡的输出路径），便于后续的结果合并搜索指定子图结果。我们将该脚本中的rm命令参数替换为正确的310输出路径，该路径要与上文中的INFERENCE_BIN_OUTPUT_FOLDER保持一致。之后的mv命令，用于将4卡的输出结果全部移动到1卡上，也要保持正确。该脚本在未来实际推理时才会用到，此处是预先进行了设置，一份可用的示例如下：
-```
-# 删除多余的输出.bin文件
-rm -rf /home/hyp/result/dumpOutput_device*/*_2.bin
-rm -rf /home/hyp/result/dumpOutput_device*/*_3.bin
-rm -rf /home/hyp/result/dumpOutput_device*/*_4.bin
-rm -rf /home/hyp/result/dumpOutput_device*/*_5.bin
-
-# 将其他文件夹的.bin结果移动到同一个目录下
-mv result/dumpOutput_device1/* result/dumpOutput_device0/
-mv result/dumpOutput_device2/* result/dumpOutput_device0/
-mv result/dumpOutput_device3/* result/dumpOutput_device0/
-```
 
 #### 1.3.8 拷贝实验结果
 推理需要对验证集中未经训练的27张图像进行推理，实测上在NPU上完成全部的推理需要2-4天时间。由于推理过程过于繁琐，我们额外提供了一份含有在fold 0设置下的全部推理结果的附加文件，也包含在NPU上的完整推理流程下的推理结果。后文将以编号11的图像为例，讲解如何进行单幅图像的推理，而其他编号的图像也可以遵循同样的方法来得到，进而复现出所有的推理结果。所有验证集图像的编号如下，将backup/output-npu/中的NPU推理结果拷贝至INFERENCE_OUTPUT_FOLDER（在1.3.7节中被设置为/home/hyp/environment/output/）下。
@@ -226,7 +213,20 @@ source env_npu.sh  # 激活NPU环境
 注：本节内容将会产生大量的输出.bin文件，请使用df -h及时观测硬盘剩余空间。如果实验进行到一半，硬盘空间紧张，请查阅下节内容。
 
 ### 2.6 清除多余的结果
-上节中使用的benchmark工具，对每张输入.bin会输出五个输出结果.bin文件，而只有其中之一是我们所需要的结果。执行以下脚本将多余的.bin删除。
+上节中使用的benchmark工具，对每张输入.bin会输出五个输出结果.bin文件，而只有其中之一是我们所需要的结果。我们需要修改程序脚本中的路径。找到项目UNetPlusPlus下的clear2345.sh，该脚本用于删除310输出结果中后缀带有2、3、4、5的冗余.bin文件（保留后缀带有1的.bin文件），并将所有的.bin文件都移动到同一个文件夹下（例如放置于device0卡的输出路径），便于后续的结果合并搜索指定子图结果。我们将该脚本中的rm命令参数替换为正确的310输出路径。之后的mv命令，用于将4卡的输出结果全部移动到1卡上，也要保持正确。该脚本在推理时才会用到，一份可用的示例如下：
+```
+# 删除多余的输出.bin文件
+rm -rf /home/hyp/result/dumpOutput_device*/*_2.bin
+rm -rf /home/hyp/result/dumpOutput_device*/*_3.bin
+rm -rf /home/hyp/result/dumpOutput_device*/*_4.bin
+rm -rf /home/hyp/result/dumpOutput_device*/*_5.bin
+
+# 将其他文件夹的.bin结果移动到同一个目录下
+mv result/dumpOutput_device1/* result/dumpOutput_device0/
+mv result/dumpOutput_device2/* result/dumpOutput_device0/
+mv result/dumpOutput_device3/* result/dumpOutput_device0/
+```
+通常来说，您只需要对上述脚本设置一次即可。执行该脚本将多余的.bin文件删除。
 ```
 bash clear2345.sh
 ```
