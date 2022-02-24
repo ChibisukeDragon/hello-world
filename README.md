@@ -2,19 +2,22 @@
 
 ## 1 环境准备 
 
-### 1.1 安装环境
+### 1.1 获取源代码
 使用backup中的requirements安装必要的依赖。
 ```
-pip3.7 install -r backup/requirements.txt
+cd /home/hyp/
+git clone https://github.com/MrGiovanni/UNetPlusPlus.git
+cd UNetPlusPlus
+git reset e145ba63862982bf1099cf2ec11d5466b434ae0b --hard
 ```
 
-### 1.2 获取，修改与安装开源模型代码  
+### 1.2 安装依赖，修改模型代码  
 ```
-git clone https://github.com/MrGiovanni/UNetPlusPlus.git
-cd UNetPlusPlus/pytorch
-pip install git+https://github.com/MIC-DKFZ/batchgenerators.git
-git reset 3da7e6f03164a92e696cb6da059b1cd771b0346d --hard
 pip install -e .
+patch -p1 < ../new.path
+
+# 也可以通过backup/requirements来安装依赖包
+pip install -r requirements.txt
 ```
 注：由于该模型需要将命令注册到环境中才能找到正确的函数入口，即使第一步中已经安装过环境所需求的包，在第二步中仍然需要一步pip来将代码注册到环境中。除此之外，每次将代码文件进行大幅度地增减时，“pip install -e .”都是必须的，否则很可能出现“import nnunet“错误。
 
@@ -287,6 +290,11 @@ NPU上的性能使用benchmark工具来计算，需要在310服务器上执行�
 source env_npu.sh
 /benchmark.x86_64 -round=20 -om_path=nnunetplusplus.om -device_id=0 -batch_size=1
 ```
+以下是实测结果，可供参考：
+```
+NPU 310性能：ave_throughputRate = 0.235349samples/s, ave_latency = 4249.14ms
+GPU T4性能：Average time spent: 2.68s
+```
 
  **评测结果：**   
 | 模型      | 官网pth精度  | 310离线推理精度  | 基准性能    | 310性能    |
@@ -294,4 +302,4 @@ source env_npu.sh
 | 3D nested_unet bs1  | [Liver 1_Dice (val):95.80, Liver 2_Dice (val):65.60](https://github.com/MrGiovanni/UNetPlusPlus/tree/master/pytorch) | Liver 1_Dice (val):96.55, Liver 2_Dice (val):71.97 |  0.3731fps | 0.9414fps | 
 
 备注：
-该模型不支持batchsize 16，甚至batchsize 2都难以在310上使用。所以本教程全程使用了batchsize 1。
+该模型不支持batchsize 16，本教程全程使用了batchsize 1。
