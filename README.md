@@ -1,9 +1,37 @@
 # 3D nested_unet模型PyTorch离线推理指导
 
+本教程的文件及其说明
+```
+推理工具
+├── benchmark.aarch64             //离线推理工具（适用ARM架构），可能需要用户自行编译获得
+├── benchmark.x86_64              //离线推理工具（适用x86架构），可能需要用户自行编译获得
+脚本文件
+├── set_env.sh                    //NPU环境变量 
+├── clear2345.sh                  //清理文件、合并结果脚本
+├── get_dataset_info.py           //用于获取二进制数据集信息的脚本 
+├── 3d_nested_unet_pth2onnx.py    //生成ONNX模型文件的程序
+├── 3d_nested_unet_preprocess.py  //数据前处理，生成输入bin文件的程序 
+├── 3d_nested_unet_postprocess.py //数据后处理，合并输出bin生成推理结果的程序
+├── onnx_infer.py                 //评测GPU性能的程序
+模型及权重文件
+├── nnunetplusplus.onnx           //ONNX模型文件
+├── nnunetplusplus.om             //OM模型文件
+其他文件
+├── README.md                     //快速上手指导，过程内容和本文大致相同
+├── new.patch                     //修改源代码的补丁
+├── requirements.txt              //环境依赖，由pip freeze > re.txt生成
+backup文件夹内
+├── nnUNet_preprocessed/          //待拷贝的实验配置文件
+├── output-gpu/                   //在GPU上的全部推理结果，内含GPU精度结果
+├── output-npu/                   //在NPU上的全部推理结果，内含NPU精度结果
+├── nnunetplusplus_prep_bin.info  //对MSD数据集Task03中第11号图像生成的info文件
+├── perf_vision_batchsize_1_device_0.txt  //NPU上的性能结果
+└── perf_T4gpu_batchsize_1.txt            //GPU上的性能结果
+```
 ## 1 环境准备 
 
 ### 1.1 获取源代码
-使用backup中的requirements安装必要的依赖。
+下载官方代码仓，并退回至指定版本，以保证代码稳定不变。
 ```
 cd /home/hyp/
 git clone https://github.com/MrGiovanni/UNetPlusPlus.git
@@ -13,15 +41,18 @@ git reset e145ba63862982bf1099cf2ec11d5466b434ae0b --hard
 
 ### 1.2 安装依赖，修改模型代码  
 ```
+patch -p1 < ./new.patch  # 载入代码修改补丁
 pip install -e .
-patch -p1 < ../new.path
+pip install batchgenerators==0.21  # 该依赖十分关键，指定其版本手动安装一次
 
-# 也可以通过backup/requirements来安装依赖包
+# 您也可以通过requirements来安装依赖包，但不推荐该方法
 pip install -r requirements.txt
 ```
-注：由于该模型需要将命令注册到环境中才能找到正确的函数入口，即使第一步中已经安装过环境所需求的包，在第二步中仍然需要一步pip来将代码注册到环境中。除此之外，每次将代码文件进行大幅度地增减时，“pip install -e .”都是必须的，否则很可能出现“import nnunet“错误。
+由于该模型需要将命令注册到环境中才能找到正确的函数入口，所以我们仍然需要一步pip来将代码注册到环境中。除此之外，每次将代码文件进行大幅度地增减时，“pip install -e .”都是必须的，否则很可能出现“import nnunet”错误。
 
-如果在执行“pip install -e .”或在后面的实验过程中，仍然出现了除了nnunet以外的其他环境包或模块的安装或导入错误，则很可能需要重新手动安装部分包。我们在多个服务器上，已观测到仍然可能出现异常的包有以下但不仅限于：
+我们不推荐您使用requirements.txt的方式来安装环境，因为这很可能遗漏nnunet的注册步骤，使得后续实验无法进行。
+
+注：如果在执行“pip install -e .”或在后面的实验过程中，仍然出现了除了nnunet以外的其他环境包或模块的安装或导入错误，则很可能需要重新手动安装部分包。我们认为，原作者没有完全指明必要的依赖，而那些隐藏的依赖目前已经升级了多个版本，导致各个依赖间的关系出现变化，进而使得如今完全按作者的描述安装依赖是不可行的。我们在多个服务器上，已观测到仍然可能出现异常的包有但不仅限于：
  - decorator
  - sympy
  - SimpleITK
@@ -91,16 +122,18 @@ nnUNet_plan_and_preprocess -t 003 --verify_dataset_integrity -tl 1 -tf 1
 
 #### 1.3.5 拷贝实验配置文件
 由于nnunet的实验计划与预处理中，对数据集的划分存在随机性，为了保证后续实验的可控性，我们提供了一些支撑材料，位于backup文件夹内。其中有一份可用的实验配置文件，即设定了训练集、验证集的划分。请将这些文件覆盖到environment中。
+
+注：请用户自行检查：若backup/nnUNet_preprocessed/内的文件为.json格式，请将其格式手动修改为.pkl格式，保持文件名不变，之后再进行拷贝。
 ```
 # 拷贝实验计划的.pkl文件和对数据集划分的.pkl文件至environment中
 cp -rf /home/hyp/backup/nnUNet_preprocessed /home/hyp/environment/
 ```
-在environment中创建一个新的子文件夹名为input，用于存放待推理的图像,同时再创建一个output文件夹用于存放模型的推理输出，请勿在以上两个文件夹中存放多余无关的文件。
+在environment中创建一个新的子文件夹名为input，用于存放待推理的图像，同时再创建一个output文件夹用于存放模型的推理输出，请勿在以上两个文件夹中存放多余无关的文件。
 ```
 cd environment
 mkdir input output
 ```
-splits_final.pkl中存储了对数据的划分，27张图片编号如下所示。我们需要将这些验证集图像拷贝到指定文件夹input下，作为我们的待推理图像，使用create_testset.py来完成验证集的迁移复制。当然您也可以自己指定想要推理的文件夹路径。
+splits_final.pkl中存储了对数据的划分，27张图片编号如下所示。我们需要将这些验证集图像（存放于nnUNet_raw_data_base/nnUNet_raw_data/Task003_Liver/imagesTr/拷贝到指定文件夹input下，作为我们的待推理图像，使用create_testset.py来完成验证集的迁移复制。当然您也可以自己指定想要推理的文件夹路径。
 ```
 # 原始图像文件名形如liver_3_0000.nii.gz、liver_128_0000.nii.gz
 # 验证集图片编号：3, 5, 11, 12, 17, 19, 24, 25, 27, 38, 40, 41, 42, 44, 51, 52, 58, 64, 70, 75, 77, 82, 101, 112, 115, 120, 128
@@ -112,7 +145,7 @@ python create_testset.py /home/hyp/environment/input/
 #### 1.3.6 获取权重文件
 该模型采用了五重交叉验证的方法，因此作者提供的预训练的权重文件也分为五个文件夹，分别代表着5个fold（交叉）的结果。实测后，各个fold的精度都相差不大，浮动大约在1%以内，鉴于计算资源的考虑，整个实验过程我们只采用fold 0（第一个交叉实验）的结果。
 
-下载预训练过的[模型参数权重](https://drive.google.com/drive/folders/1mY6nOoL9ddHyFqNIKqBN9l3GhPegye8H)，在environment下创建一个新的子文件夹download_models用于存放下载得到的压缩包，将该压缩包解压后得到五个文件夹及一个配置文件：fold_0, fold_1, fold_2, fold_3, fold_4, plans.pkl。
+下载预训练过的[模型参数权重download models](https://github.com/MrGiovanni/UNetPlusPlus/tree/master/pytorch)，在environment下创建一个新的子文件夹download_models用于存放下载得到的压缩包，将该压缩包解压后得到五个文件夹及一个配置文件：fold_0, fold_1, fold_2, fold_3, fold_4, plans.pkl。
 
 将其中的fold_0文件夹和plans.pkl拷贝至environment/RESULTS_FOLDER/nnUNet/3d_fullres/Task003_Liver/nnUNetPlusPlusTrainerV2__nnUNetPlansv2.1/下，模拟我们已经完成了训练过程，请提前创建相关子文件夹。
 ```
@@ -138,7 +171,7 @@ environment/RESULTS_FOLDER/nnUNet/3d_fullres/Task003_Liver/nnUNetPlusPlusTrainer
  - INFERENCE_OUTPUT_FOLDER：推理完成后，存放推理结果的文件夹。（该文件夹在1.3.5节中被创建）
  - INFERENCE_SHAPE_PATH：存放文件all_shape.txt的目录。在后续实验过程中会被介绍到，在该目录下会生成一个all_shape.txt，存储着当前待推理图像的属性。这是一个中间结果文件，用户无需具体了解。
  
- 最终的修改示例如下：
+最终的修改示例如下：
 ```
 INFERENCE_INPUT_FOLDER = '/home/hyp/environment/input/'
 INFERENCE_OUTPUT_FOLDER = '/home/hyp/environment/output/'
@@ -152,7 +185,7 @@ INFERENCE_SHAPE_PATH = '/home/hyp/environment/'
 # 图片编号同1.3.5节中所介绍的：3, 5, 11, 12, 17, 19, 24, 25, 27, 38, 40, 41, 42, 44, 51, 52, 58, 64, 70, 75, 77, 82, 101, 112, 115, 120, 128
 cp -rf /home/hyp/backup/output-npu/* /home/hyp/environment/output/
 ```
-注：output-npu和output-gpu下的summary.json即为整个实验在NPU和GPU上的精度评测结果，仅供参考。在2.9节中我们会替换掉它生成新的评测结果。
+注：output-npu和output-gpu下的summary.json即为整个实验在NPU和GPU上的精度评测结果，仅供参考。在2.9节中我们会替换掉它生成新的评测结果。若用户发现存在plans.json文件，请将其后缀格式修改为.pkl。
 
 ### 1.4 获取[benchmark工具](https://gitee.com/ascend/cann-benchmark/tree/master/infer) 
 将benchmark.x86_64或benchmark.aarch64放到当前工作目录。
@@ -160,15 +193,18 @@ cp -rf /home/hyp/backup/output-npu/* /home/hyp/environment/output/
 ## 2 离线推理 
 
 ### 2.1 生成om模型
-首先让模型载入预训练好的权重，使用UNetPlusPlus/pytorch/nnunet/inference/predict_simple2.py将其转化为onnx模型，输出为nnunetplusplus.onnx。其中参数--pre_mode的取值含义如下，我们在此将其置为-1：
- - --pre_mode = -1：推理模式-1，转换模式。加载预训练的模型并转化为onnx模型，输出的onnx文件为--file_path。
- - --pre_mode = 1：推理模式1，拆分模式。将INFERENCE_INPUT_FOLDER下的待推理图像切割子图，生成一批输入.bin文件，存放到INFERENCE_BIN_INPUT_FOLDER下。
- - --pre_mode = 2：推理模式2，组合模式。将INFERENCE_BIN_OUTPUT_FOLDER下的输出.bin文件合并出推理结果，推理结果会存放到INFERENCE_OUTPUT_FOLDER下。
+下面简要介绍了离线推理中的重要步骤所使用的程序，它们都必须接受一个用户提供的路径参数--file_path：
+ - 3d_nested_unet_pth2onnx.py：转换模式。加载预训练的模型并转化为onnx模型，输出的onnx文件为--file_path。
+ - 3d_nested_unet_preprocess.py：拆分模式。数据前处理，将INFERENCE_INPUT_FOLDER（在1.3.7节中被设置为/home/hyp/environment/input/）下的待推理图像切割子图，生成一批输入.bin文件，存放到--file_path下。
+ - 3d_nested_unet_postprocess.py：组合模式。数据后处理，将--file_path下的输出.bin文件合并出推理结果，推理结果会存放到INFERENCE_OUTPUT_FOLDER（在1.3.7节中被设置为/home/hyp/environment/output/）下。
+
+首先让模型载入预训练好的权重，将其转化为onnx模型，输出文件为一个指定路径下的nnunetplusplus.onnx，暂且将其置于environment内。
 ```
-python predict_simple2.py --pre_mode -1 --file_path /home/hyp/environment/nnunetplusplus.onnx
+python 3d_nested_unet_pth2onnx.py --file_path /home/hyp/environment/nnunetplusplus.onnx
 ```
-之后我们需要将onnx转化为om模型，先使用npu-smi info查看设备状态，确保device空闲后，执行以下命令。这将生成batch_size为1的om模型，其输入onnx文件为nnunetplusplus.onnx，输出om文件命名为nnunetplusplus，这将在当前路径下生成nnunetplusplus.om文件。
+之后我们需要将onnx转化为om模型，先使用npu-smi info查看设备状态，确保device空闲后，执行以下命令。这将生成batch_size为1的om模型，其输入onnx文件为nnunetplusplus.onnx，输出om文件命名为nnunetplusplus，这将在当前路径下生成nnunetplusplus.om文件，后面的--input_format和--input_shape参数则指代了该模型的输入图像规格与尺寸。
 ```
+cd environment
 atc --framework=5 --model=nnunetplusplus.onnx --output=nnunetplusplus --input_format=NCDHW --input_shape="image:1,1,128,128,128" --log=debug --soc_version=Ascend310
 ```
 
@@ -183,16 +219,16 @@ rm /home/hyp/environment/output/liver_11.nii.gz
 如果您想推理其他图像，删除在INFERENCE_OUTPUT_FOLDER中的其他编号的结果文件，使得与INFERENCE_INPUT_FOLDER的差集不为空集即可。我们推荐您每次只推理一张图像，否则您无法确切知道模型目前正在推理哪张图像，以及当前推理的进度。
 
 ### 2.3 数据预处理后切割子图，生成待输入bin文件
-遵从UNET的实验流程，一张待推理的图像会被切割出1000至4000张的子图，我们需要将这些子图存储为.bin文件，存放在指定目录下，暂且先定为environment/input_bins。使用UNetPlusPlus/pytorch/nnunet/inference/predict_simple2.py，推理模式设为1，参数--file_path指定为想要生成输入bin文件的目录，请用户自行创建该文件夹。
+遵从UNET的实验流程，一张待推理的图像会被切割出1000至4000张的子图，我们需要将这些子图存储为.bin文件，存放在指定目录下，暂且先定为environment/input_bins。使用3d_nested_unet_preprocess.py，参数--file_path指定为想要生成输入bin文件的目录，请用户自行创建该文件夹。
 ```
-python predict_simple2.py --pre_mode 1 --file_path /home/hyp/environment/input_bins/
+python 3d_nested_unet_preprocess.py --file_path /home/hyp/environment/input_bins/
 ```
 该程序执行成功后，会在--file_path下生成大量的.bin文件，并且在INFERENCE_SHAPE_PATH（在1.3.7节中被设置为/home/hyp/environment/）下生成一个all_shape.txt文件，该文件存储了当前待输入图像的部分属性信息，这些信息将在后续的实验过程中帮助输出.bin的结果合并，使用过程中无需查阅里面的内容。
 
 注：请确保有充足的硬盘空间。若使用310设备，遵从UNET的实验流程设计，推理一副图像，预计消耗200GB至800GB（多为300GB左右，上限受原始图像尺寸影响，800GB是一个预估值）的额外存储空间，耗时半小时至两小时不等。待推理的图像共有27张，不可能一次性将所有图像都推理完毕，因此我们只能采用逐个图像推理，之后立即做结果合并，然后删除掉使用过的bin文件，重复此过程。
 
 ### 2.4 生成info文件
-使用UNetPlusPlus/pytorch/nnunet/inference/gen_dataset_info.py，对上述生成的预处理数据.bin，生成对应的info文件，作为benchmark工具推理的输入，将结果命名为nnunetplusplus.info。
+使用UNetPlusPlus/pytorch/nnunet/inference/gen_dataset_info.py，读取INFERENCE_INPUT_FOLDER（在1.3.7节中被设置为/home/hyp/environment/input/）中全部文件的路径，即生成的预处理数据.bin的路径，进而生成对应的info文件，作为benchmark工具推理的输入，将结果命名为nnunetplusplus.info，两个参数128指代了模型的输入尺寸。
 ```
 python gen_dataset_info.py bin ./environment/input_bins nnunetplusplus_prep_bin.info 128 128
 ```
@@ -201,7 +237,7 @@ python gen_dataset_info.py bin ./environment/input_bins nnunetplusplus_prep_bin.
 ### 2.5 使用benchmark工具进行推理
 确保device空闲，将benchmark工具与上节生成的.info文件放于同一目录下，使用benchmark工具同步开启一个或四个进程进行推理。参数-device_id指代了使用的设备编号，-om_path指代了使用的om模型，-input_text_path指代了采用的info文件，-output_binary=True指代了将结果保存为.bin。
 ```
-source env_npu.sh  # 激活NPU环境
+source set_env.sh  # 激活NPU环境
 # 方法一：使用总的nnunetplusplus_prep_bin.info，使用1个310进行推理
 ./benchmark.x86_64 -model_type=vision -device_id=0 -batch_size=1 -om_path=./environment/nnunetplusplus.om -input_text_path=nnunetplusplus_prep_bin.info -input_width=128 -input_height=128 -output_binary=True -useDvpp=False
 
@@ -229,16 +265,16 @@ mv result/dumpOutput_device1/* result/dumpOutput_device0/
 mv result/dumpOutput_device2/* result/dumpOutput_device0/
 mv result/dumpOutput_device3/* result/dumpOutput_device0/
 ```
-通常来说，您只需要对上述脚本设置一次即可。执行该脚本将多余的.bin文件删除。
+通常来说，您只需要对上述脚本设置一次即可。执行该脚本将多余的.bin文件删除。当所有设备都推理结束后，也请执行一次该脚本，确保所有结果都位于同一文件夹下。
 ```
 bash clear2345.sh
 ```
 注：clear2345.sh脚本可与前一节同步使用。及时使用df -h命令查看硬盘剩余空间，适时调用该脚本清理多余的后缀为2、3、4、5的输出.bin文件，使得该实验仍可以在存储空间较小的设备上运行。以4卡并行为例，每半小时运行一次该脚本，可以清理出约150GB-200GB的存储空间。在前一节内容全部完成后，也要调用一次该脚本，将4卡的结果都移动到dumpOutput_device0文件夹中，保证dumpOutput_device0文件夹中保留有全部的输出.bin文件。
 
 ### 2.7 将结果.bin文件合并为最终推理结果
-使用UNetPlusPlus/pytorch/nnunet/inference/predict_simple2.py，推理模式设为2，参数--file_path指定为经310推理生成的.bin文件的目录，也就是将result/dumpOutput_device0/下的.bin文件做结果合并。生成的推理结果会输出到INFERENCE_OUTPUT_FOLDER（在1.3.7节中被设置为/home/hyp/environment/output/）下。
+使用3d_nested_unet_postprocess.py，参数--file_path指定为经310推理生成的.bin文件的目录，也就是将result/dumpOutput_device0/下的.bin文件做结果合并。生成的推理结果会输出到INFERENCE_OUTPUT_FOLDER（在1.3.7节中被设置为/home/hyp/environment/output/）下。
 ```
-python predict_simple2.py --pre_mode 2 --file_path /home/hyp/result/dumpOutput_device0/
+python 3d_nested_unet_postprocess.py --file_path /home/hyp/result/dumpOutput_device0/
 ```
 
 ### 2.8 重复实验
@@ -247,7 +283,7 @@ python predict_simple2.py --pre_mode 2 --file_path /home/hyp/result/dumpOutput_d
 若用户希望复现其他结果，请重复2.2至2.8的步骤，直至全部的验证集图片都推理完毕。
 
 ### 2.9 精度评测
-推理完成后，我们需要对全部结果做精度验证。将INFERENCE_OUTPUT_FOLDER（在1.3.7节中被设置为/home/hyp/environment/output/）下的结果拷贝至environment/RESULTS_FOLDER/nnUNet/3d_fullres/Task003_Liver/nnUNetPlusPlusTrainerV2__nnUNetPlansv2.1/fold_0/validation_raw/下，请用户自行创建相关子文件夹。
+推理完成后，我们需要对全部结果做精度验证。将INFERENCE_OUTPUT_FOLDER（在1.3.7节中被设置为/home/hyp/environment/output/）下的结果拷贝至environment/RESULTS_FOLDER/nnUNet/3d_fullres/Task003_Liver/nnUNetPlusPlusTrainerV2__nnUNetPlansv2.1/fold_0/validation_raw/下，模拟我们已经使用模型完成了训练过程，并且进入了验证阶段。请用户自行创建相关子文件夹。
 ```
 cp -rf /home/hyp/environment/output/* environment/RESULTS_FOLDER/nnUNet/3d_fullres/Task003_Liver/nnUNetPlusPlusTrainerV2__nnUNetPlansv2.1/fold_0/validation_raw/
 ```
@@ -255,9 +291,9 @@ cp -rf /home/hyp/environment/output/* environment/RESULTS_FOLDER/nnUNet/3d_fullr
 ```
 nnUNet_train 3d_fullres nnUNetTrainerV2 003 0 --validation_only
 ```
-注：首次运行该命令时，模型将开始对数据集解包，这将消耗比平时更多的时间。
+注：首次运行nnUNet_train命令时，模型将开始对数据集解包，这将消耗比平时更多的时间。
 
-实验的精度将记录在environment/RESULTS_FOLDER/nnUNet/3d_fullres/Task003_Liver/nnUNetPlusPlusTrainerV2__nnUNetPlansv2.1/fold_0/validation_raw/summary.json中，您可以参照如下的结构树来找到其中的Dice指标。
+实验的精度将记录在environment/RESULTS_FOLDER/nnUNet/3d_fullres/Task003_Liver/nnUNetPlusPlusTrainerV2__nnUNetPlansv2.1/fold_0/validation_raw/summary.json中，您可以参照如下的结构树来找到其中的Dice指标。结果存在浮动是正常现象。
 ```
 summary.json
 ├── "author"
@@ -285,9 +321,9 @@ GPU上的性能使用onnx_infer.py来计算，需要在T4服务器上执行。
 ```
 python onnx_infer.py nnunetplusplus.onnx 1,1,128,128,128
 ```
-NPU上的性能使用benchmark工具来计算，需要在310服务器上执行。使用benchmark前需要激活env_npu.sh环境变量
+NPU上的性能使用benchmark工具来计算，需要在310服务器上执行。使用benchmark前需要激活set_env.sh环境变量
 ```
-source env_npu.sh
+source set_env.sh
 /benchmark.x86_64 -round=20 -om_path=nnunetplusplus.om -device_id=0 -batch_size=1
 ```
 以下是实测结果，可供参考：
@@ -302,4 +338,7 @@ GPU T4性能：Average time spent: 2.68s
 | 3D nested_unet bs1  | [Liver 1_Dice (val):95.80, Liver 2_Dice (val):65.60](https://github.com/MrGiovanni/UNetPlusPlus/tree/master/pytorch) | Liver 1_Dice (val):96.55, Liver 2_Dice (val):71.97 |  0.3731fps | 0.9414fps | 
 
 备注：
-该模型不支持batchsize 16，本教程全程使用了batchsize 1。
+
+1.该模型的推理过程从设计之初便不支持batchsize 2及以上，本教程全程使用了batchsize 1。
+
+2.本应使用测试集进行精度验证的。但该数据集的测试集不支持单任务的精度测试，其测试集label是不公开的。因此本文只能使用数据集的验证集进行精度测试，这也导致了本文的一些实验步骤与官方不同。
