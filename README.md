@@ -41,7 +41,7 @@ git reset e145ba63862982bf1099cf2ec11d5466b434ae0b --hard
 
 ### 1.2 安装依赖，修改模型代码  
 ```
-patch -p1 < ./new.patch  # 载入代码修改补丁
+patch -p1 < ../new.patch  # 载入代码修改补丁
 pip install -e .
 pip install batchgenerators==0.21  # 该依赖十分关键，指定其版本手动安装一次
 
@@ -52,7 +52,7 @@ pip install -r requirements.txt
 
 我们不推荐您使用requirements.txt的方式来安装环境，因为这很可能遗漏nnunet的注册步骤，使得后续实验无法进行。
 
-注：如果在执行“pip install -e .”或在后面的实验过程中，仍然出现了除了nnunet以外的其他环境包或模块的安装或导入错误，则很可能需要重新手动安装部分包。我们认为，原作者没有完全指明必要的依赖，而那些隐藏的依赖目前已经升级了多个版本，导致各个依赖间的关系出现变化，进而使得如今完全按作者的描述安装依赖是不可行的。我们在多个服务器上，已观测到仍然可能出现异常的包有但不仅限于：
+注：如果在执行“pip install -e .”或在后面的实验过程中，仍然出现了环境包或模块的安装或导入错误，则很可能需要重新手动安装部分包。我们认为，原作者没有完全指明必要的依赖，而那些隐藏的依赖目前已经升级了多个版本，导致各个依赖间的关系出现变化，进而使得如今完全按作者的描述安装依赖是不可行的。我们在多个服务器上，已观测到仍然可能出现异常的包有但不仅限于：
  - decorator
  - sympy
  - SimpleITK
@@ -60,6 +60,8 @@ pip install -r requirements.txt
  - batchgenerators==0.21
  - pandas
  - scikit-image
+ - sklearn
+ - nibabel
  
 上述的包可能需要您再手动安装一次，使用诸如“pip install batchgenerators==0.21”的方式来重新安装界面报错提示中指定的那些包。
 
@@ -67,13 +69,20 @@ pip install -r requirements.txt
 该模型是依赖于[UNET官方代码仓](https://github.com/MIC-DKFZ/nnUNet)而进行的二次开发，依据UNET的描述，整个实验流程大体可描述为“数据格式转换->数据预处理->训练->验证->推理”。中间不可跳过，因为每一个后续步骤都依赖于前一个步骤的结果。您可以参照官方说明进行数据集设置，但过于繁琐。下面我们将描述其中的核心步骤及注意事项，必要时通过提供中间结果文件来帮助我们跳过一些步骤。
 
 #### 1.3.1 设置nnunet环境变量
-参照UNET的描述，在硬盘空间充足的路径下，我们以/home/hyp/为例，在该路径下创建一个新的文件夹environment，用于存放相关实验数据，该路径不强求和项目所在路径相同。在environment中再创建三个子文件夹：nnUNet_raw_data_base、nnUNet_preprocessed和RESULTS_FOLDER。最后修改/root/.bashrc文件，设置环境变量（必做）。
+参照UNET的描述，在硬盘空间充足的路径下，我们以/home/hyp/为例，在该路径下创建一个新的文件夹environment，用于存放相关实验数据，该路径不强求和项目所在路径相同。在environment中再创建三个子文件夹：nnUNet_raw_data_base、nnUNet_preprocessed和RESULTS_FOLDER。
+```
+cd environment
+mkdir nnUNet_raw_data_base
+mkdir nnUNet_preprocessed
+mkdir RESULTS_FOLDER
+```
+最后修改/root/.bashrc文件，在文件尾部添加如下环境变量。这样以后每次开启新会话时，位于.bashrc中的环境变量都会自动导入。
 ```
 export nnUNet_raw_data_base="/home/hyp/environment/nnUNet_raw_data_base"
 export nnUNet_preprocessed="/home/hyp/environment/nnUNet_preprocessed"
 export RESULTS_FOLDER="/home/hyp/environment/RESULTS_FOLDER"
 ```
-使用source命令来刷新环境变量。
+使用source命令来刷新环境变量。如果您实在不想修改.bashrc文件，您也可以在您当前会话中直接输入上面的三条export语句来设置环境变量，但是这些变量只在当前会话内有效。
 ```
 source ~/.bashrc
 ```
@@ -114,7 +123,7 @@ nnunet十分依赖数据集，这一步需要提取数据集的属性，例如�
 ```
 nnUNet_plan_and_preprocess -t 003 --verify_dataset_integrity
 ```
-我们观察到，该过程很可能意外中断却不给予用户提示信息，这在系统内存较小时会随机发生，请您确保该实验过程可以正常结束。如果您的设备性能较差或者较长时间后都未能正常结束，您可以改用下面的命令来降低系统占用，而这将显著提升该步骤的运行时间。
+我们观察到，该过程很可能意外中断却不给予用户提示信息，这在系统内存较小时会随机发生，请您确保该实验过程可以正常结束。如果您的设备性能较差或者较长时间后都未能正常结束，您可以改用下面的命令来降低系统占用，而这将显著提升该步骤的运行时间。实践来看，通过输入free -m命令，如果系统显示的available Mem低于30000或在30000左右，则我们推荐您使用下面的命令。
 ```
 nnUNet_plan_and_preprocess -t 003 --verify_dataset_integrity -tl 1 -tf 1
 ```
@@ -333,9 +342,9 @@ GPU T4性能：Average time spent: 2.68s
 ```
 
  **评测结果：**   
-| 模型      | 官网pth精度  | 310离线推理精度  | 基准性能    | 310性能    |
-| :------: | :------: | :------: | :------:  | :------:  | 
-| 3D nested_unet bs1  | [Liver 1_Dice (val):95.80, Liver 2_Dice (val):65.60](https://github.com/MrGiovanni/UNetPlusPlus/tree/master/pytorch) | Liver 1_Dice (val):96.55, Liver 2_Dice (val):71.97 |  0.3731fps | 0.9414fps | 
+| 模型      | 官网pth精度  | GPU推理精度 | 310离线推理精度  | 基准性能    | 310性能    |
+| :------: | :------: | :------: | :------: | :------:  | :------:  | 
+| 3D nested_unet bs1  | [Liver 1_Dice (val):95.80, Liver 2_Dice (val):65.60](https://github.com/MrGiovanni/UNetPlusPlus/tree/master/pytorch) | Liver 1_Dice (val):96.55, Liver 2_Dice (val):71.94 | Liver 1_Dice (val):96.55, Liver 2_Dice (val):71.97 |  0.3731fps | 0.9414fps | 
 
 备注：
 
