@@ -37,17 +37,18 @@
 | :------: | :------: |
 | [UNET官方代码仓](https://github.com/MIC-DKFZ/nnUNet)  | UNET官方框架 |
 | [UNET++官方代码仓](https://github.com/MrGiovanni/UNetPlusPlus/tree/master/pytorch)  | 依据UNET官方框架进行开发的UNET++官方代码 |
-| [MSD数据集（Medical Segmentation Decathlon）](http://medicaldecathlon.com/)  | 医学十项全能数据集，内含10个子任务，本文只对任务3肝脏任务进行验证 |
+| [MSD数据集（Medical Segmentation Decathlon）](http://medicaldecathlon.com/)  | 医学十项全能数据集，内含10个子任务，本文只对任务3肝脏任务进行验证。数据图像均为三维灰度图像，您可以下载使用ITK-SNAP工具来可视化图像。 |
 | [UNET++模型权重文件](https://github.com/MrGiovanni/UNetPlusPlus/tree/master/pytorch)  | UNET++作者提供的模型权重，在其中“How to use UNet++”章节中存有链接 |
-| [权重文件download_models文件夹](www.baidu.com)  | 本文所使用的，只节选了fold_0及plans.pkl的权重文件 |
-| [备份文件backup文件夹](www.baidu.com)  | 本文所使用的，相关实验配置文件 |
+| [权重文件download_models文件夹](https://www.baidu.com)  | 本文所使用的，只节选了fold_0及plans.pkl的权重文件 |
+| [备份文件backup文件夹](https://www.baidu.com)  | 本文所使用的，相关实验配置文件 |
 | [benchmark工具](https://gitee.com/ascend/cann-benchmark/tree/master/infer)  | 在310上进行推理所需的可执行文件。或许msame也可以使用。 |
 
 **关键环境：**
 | 依赖名 | 版本号 |
 | :------: | :------: |
-| CANN（使用atc转换OM时）  | 在5.0.3和5.1.RC1.alpha001上通过 |
-| CANN（其他实验步骤）  | 在5.0.3、5.0.4和5.1.RC1.alpha001上通过 |
+| CANN  | 5.1.RC1.alpha001 |
+| CANN（仅在atc转换OM时）  | 5.0.3 / 5.1.RC1.alpha001 |
+| CANN（除了使用atc以外的实验步骤时）  | 5.0.3 / 5.0.4 / 5.1.RC1.alpha001 |
 | python  | ==3.7.5 |
 | torch   | >=1.6.0 (cpu版本即可) |
 | batchgenerators  | ==0.21 |
@@ -61,7 +62,7 @@
 ## 1 环境准备 
 
 ### 1.1 获取源代码
-下载官方代码仓，并退回至指定版本，以保证代码稳定不变。
+下载官方代码仓，并退回至指定版本，以保证代码稳定不变。本文以下教程与模型推理指导书保持相同。
 ```
 cd /home/hyp/
 git clone https://github.com/MrGiovanni/UNetPlusPlus.git
@@ -123,8 +124,11 @@ export CUDA_VISIBLE_DEVICES=0,1,2,3
 ```
 
 #### 1.3.2 获取数据集
-获取[Medical Segmentation Decathlon](http://medicaldecathlon.com/)，下载其中的第三个子任务集Task03_Liver.tar，放到environment目录下（后文中environment均指代/home/hyp/environment/），并解压。该数据集中的Task03_Liver在后续实验过程中会被裁剪展开，该数据集在使用时将占用约260GB的存储空间。
+获取[Medical Segmentation Decathlon](http://medicaldecathlon.com/)，下载其中的第三个子任务集Task03_Liver.tar，放到environment目录下（后文中environment均指代/home/hyp/environment/），并解压。该数据集中的Task03_Liver在后续实验过程中会被裁剪展开，该数据集在使用时将占用约260GB的存储空间。我们推荐您至少确保该路径下有400GB的存储空间。
 ```
+# 确认系统剩余存储空间
+df -h
+# 转移并解压数据集
 mv ./Task03_Liver.tar /home/hyp/environment/
 cd /home/hyp/environment/
 tar xvf Task03_Liver.tar
@@ -233,7 +237,10 @@ cp -rf /home/hyp/backup/output-npu/* /home/hyp/environment/output/
 注：output-npu和output-gpu下的summary.json即为整个实验在NPU和GPU上的精度评测结果，仅供参考。在2.9节中我们会替换掉它生成新的评测结果。若用户发现存在plans.json文件，请将其后缀格式修改为.pkl。
 
 ### 1.4 获取[benchmark工具](https://gitee.com/ascend/cann-benchmark/tree/master/infer) 
-将benchmark.x86_64或benchmark.aarch64放到当前工作目录。
+将编译好的benchmark.x86_64或benchmark.aarch64放到当前工作目录。您可以使用如下命令来确认自己的系统是x86架构还是aarch架构。
+```
+uname -a
+```
 
 ## 2 离线推理 
 
@@ -254,6 +261,7 @@ python 3d_nested_unet_pth2onnx.py --file_path /home/hyp/environment/nnunetpluspl
 cd environment
 atc --framework=5 --model=nnunetplusplus.onnx --output=nnunetplusplus --input_format=NCDHW --input_shape="image:1,1,128,128,128" --log=debug --soc_version=Ascend310
 ```
+注：我们注意到在CANN 5.0.3上，atc命令可以通过，但在CANN 5.0.4上却会报错：RuntimeError: ({'errCode': 'E90003', 'detailed_cause': 'tuple_reduce_sum not support'}, 'Compile operator failed, cause: Template constraint, detailed information: tuple_reduce_sum not support.')。最终本文在CANN 5.1.RC1.alpha001下又得以通过。
 
 ### 2.2 删除指定的待推理图像的结果文件
 本质上，若在INFERENCE_INPUT_FOLDER（在1.3.7节中被设置为/home/hyp/environment/input/）中存在输入图像而在INFERENCE_OUTPUT_FOLDER（在1.3.7节中被设置为/home/hyp/environment/output/）中不存在结果图像，二者的差集便是模型需要进行推理的内容，接着模型便是随机挑选一张未经推理的图像进行推理，这个随机性是由多个进程的IO读取速率来决定的。
@@ -263,7 +271,7 @@ atc --framework=5 --model=nnunetplusplus.onnx --output=nnunetplusplus --input_fo
 # 全部验证集图像的编号：3, 5, 11, 12, 17, 19, 24, 25, 27, 38, 40, 41, 42, 44, 51, 52, 58, 64, 70, 75, 77, 82, 101, 112, 115, 120, 128
 rm /home/hyp/environment/output/liver_11.nii.gz
 ```
-如果您想推理其他图像，删除在INFERENCE_OUTPUT_FOLDER中的其他编号的结果文件，使得与INFERENCE_INPUT_FOLDER的差集不为空集即可。我们推荐您每次只推理一张图像，否则您无法确切知道模型目前正在推理哪张图像，以及当前推理的进度。
+如果您想推理其他图像，删除在INFERENCE_OUTPUT_FOLDER中的其他编号的结果文件，使得与INFERENCE_INPUT_FOLDER的差集不为空集即可。我们推荐您每次只推理一张图像，否则您无法确切知道模型目前正在推理哪张图像，以及当前推理的进度。如果差集较大，则很可能占据超过预期的存储空间。
 
 ### 2.3 数据预处理后切割子图，生成待输入bin文件
 遵从UNET的实验流程，一张待推理的图像会被切割出1000至4000张的子图，我们需要将这些子图存储为.bin文件，存放在指定目录下，暂且先定为environment/input_bins。使用3d_nested_unet_preprocess.py，参数--file_path指定为想要生成输入bin文件的目录，请用户自行创建该文件夹。
@@ -362,7 +370,7 @@ summary.json
 ├── "task": "Task003_Liver"
 └── "timestamp"
 ```
-这是在第一折交叉验证下的结果，验证集图像只有27张，选用不同的交叉必然会导致不同的实验结果，但对精度达标的目标来说影响不大。
+这是在第一折交叉验证下的结果，验证集图像只有27张，本文的肝脏数据是在不同的实验仪器下采集的，图像尺寸与图像质量均存在较大差异。选用不同的交叉必然会导致不同的实验结果，但对精度达标的目标来说影响不大。
 
 ### 2.10 性能评测
 GPU上的性能使用onnx_infer.py来计算，需要在T4服务器上执行。您也可以在从backup/perf_T4gpu_batchsize_1.txt中直接查看性能结果。
