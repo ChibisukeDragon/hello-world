@@ -32,17 +32,6 @@
 ├── perf_vision_batchsize_1_device_0.txt  //NPU上的性能结果
 └── perf_T4gpu_batchsize_1.txt            //GPU上的性能结果
 ```
-**相关链接：**
-| 名称和地址 | 说明 |
-| :------: | :------: |
-| [UNET官方代码仓](https://github.com/MIC-DKFZ/nnUNet)  | UNET官方框架 |
-| [UNET++官方代码仓](https://github.com/MrGiovanni/UNetPlusPlus/tree/master/pytorch)  | 依据UNET官方框架进行开发的UNET++官方代码 |
-| [MSD数据集（Medical Segmentation Decathlon）](http://medicaldecathlon.com/)  | 医学十项全能数据集，内含10个子任务，本文只对任务3肝脏任务进行验证。数据图像均为三维灰度图像，您可以下载使用ITK-SNAP工具来可视化图像。 |
-| [UNET++模型权重文件](https://github.com/MrGiovanni/UNetPlusPlus/tree/master/pytorch)  | UNET++作者提供的模型权重，在其中“How to use UNet++”章节中存有链接 |
-| [权重文件download_models文件夹](https://www.baidu.com)  | 本文所使用的，只节选了fold_0及plans.pkl的权重文件 |
-| [备份文件backup文件夹](https://www.baidu.com)  | 本文所使用的，相关实验配置文件 |
-| [benchmark工具](https://gitee.com/ascend/cann-benchmark/tree/master/infer)  | 在310上进行推理所需的可执行文件。或许msame也可以使用。 |
-
 **关键环境：**
 | 依赖名 | 版本号 |
 | :------: | :------: |
@@ -52,13 +41,24 @@
 | python  | ==3.7.5 |
 | torch   | >=1.6.0 (cpu版本即可) |
 | batchgenerators  | ==0.21 |
-| numpy  | 未指明 |
-| pandas  | 未指明 |
-| pillow  | 未指明 |
-| SimpleITK  | 未指明 |
-| scikit-image  | 未指明 |
+| numpy  | 无特定版本要求 |
+| pandas  | 无特定版本要求 |
+| pillow  | 无特定版本要求 |
+| SimpleITK  | 无特定版本要求 |
+| scikit-image  | 无特定版本要求 |
 | 其他依赖可在后文实验步骤中查阅  | 未指明 |
 
+**相关链接：**
+| 名称和地址 | 说明 |
+| :------: | :------: |
+| [UNET官方代码仓](https://github.com/MIC-DKFZ/nnUNet)  | UNET官方框架 |
+| [UNET++官方代码仓](https://github.com/MrGiovanni/UNetPlusPlus/tree/master/pytorch)  | 依据UNET官方框架进行开发的UNET++官方代码 |
+| [MSD数据集（Medical Segmentation Decathlon）](http://medicaldecathlon.com/)  | 医学十项全能数据集，内含10个子任务，本文只对任务3肝脏任务进行验证。数据图像均为三维灰度图像，您可以下载使用ITK-SNAP工具来可视化图像。 |
+| [ITK-SNAP](http://www.itksnap.org/pmwiki/pmwiki.php)  | 三维图像可视化工具 |
+| [UNET++模型权重文件](https://github.com/MrGiovanni/UNetPlusPlus/tree/master/pytorch)  | UNET++作者提供的模型权重，在其中“How to use UNet++”章节中存有链接 |
+| 权重文件download_models文件夹  | 本文所使用的，只节选了fold_0及plans.pkl的权重文件。obs://ascend-pytorch-model-file/验收-推理/cv/segmentation/3D_Nested_Unet/实验配置文件、推理结果、性能参考文件/ |
+| 备份文件backup文件夹  | 本文所使用的，相关实验配置文件。若无链接，可下载UNET++作者提供的权重文件 |
+| [benchmark工具](https://gitee.com/ascend/cann-benchmark/tree/master/infer)  | 在310上进行推理所需的可执行文件。或许更新的msame工具也可以使用 |
 ## 1 环境准备 
 
 ### 1.1 获取源代码
@@ -94,7 +94,7 @@ pip install -r requirements.txt
  - sklearn
  - nibabel
  
-上述的包可能需要您再手动安装一次，使用诸如“pip install batchgenerators==0.21”的方式来重新安装界面报错提示中指定的那些包。
+在多个不同的服务器环境上，上述的包都有过至少两次安装失败的经历。通常手动安装上述的包就可以解决问题，使用诸如“pip install batchgenerators==0.21”的方式来重新安装界面报错提示中指定的那些包，或更换镜像源。第二种方法是使用离线whl包进行安装。若仍无法解决，则很可能是系统底层版本过低，例如GLIBC。
 
 ### 1.3 准备数据集及环境设置
 该模型是依赖于[UNET官方代码仓](https://github.com/MIC-DKFZ/nnUNet)而进行的二次开发，依据UNET的描述，整个实验流程大体可描述为“数据格式转换->数据预处理->训练->验证->推理”。中间不可跳过，因为每一个后续步骤都依赖于前一个步骤的结果。您可以参照官方说明进行数据集设置，但过于繁琐。下面我们将描述其中的核心步骤及注意事项，必要时通过提供中间结果文件来帮助我们跳过一些步骤。
@@ -107,7 +107,7 @@ mkdir nnUNet_raw_data_base
 mkdir nnUNet_preprocessed
 mkdir RESULTS_FOLDER
 ```
-最后修改/root/.bashrc文件，在文件尾部添加如下环境变量。这样以后每次开启新会话时，位于.bashrc中的环境变量都会自动导入。
+最后修改/root/.bashrc文件，在文件尾部添加如下环境变量。这样以后每次开启新会话时，位于.bashrc中的环境变量都会自动导入，无需用户再手动export一次。
 ```
 export nnUNet_raw_data_base="/home/hyp/environment/nnUNet_raw_data_base"
 export nnUNet_preprocessed="/home/hyp/environment/nnUNet_preprocessed"
@@ -388,7 +388,7 @@ NPU 310性能：ave_throughputRate = 0.235349samples/s, ave_latency = 4249.14ms
 GPU T4性能：Average time spent: 2.68s
 ```
 
- **评测结果：**   
+**评测结果：**   
 | 模型      | 官网pth精度  | GPU推理精度 | 310离线推理精度  | 基准性能    | 310性能    |
 | :------: | :------: | :------: | :------: | :------:  | :------:  | 
 | 3D nested_unet bs1  | [Liver 1_Dice (val):95.80, Liver 2_Dice (val):65.60](https://github.com/MrGiovanni/UNetPlusPlus/tree/master/pytorch) | Liver 1_Dice (val):96.55, Liver 2_Dice (val):71.94 | Liver 1_Dice (val):96.55, Liver 2_Dice (val):71.97 |  0.3731fps | 0.9414fps | 
