@@ -13,6 +13,7 @@
 ├── 3d_nested_unet_preprocess.py  //数据前处理，生成输入bin文件的程序 
 ├── 3d_nested_unet_postprocess.py //数据后处理，合并输出bin生成推理结果的程序
 ├── onnx_infer.py                 //评测GPU性能的程序
+├── change_infer_path.py          //修改实验路径的程序
 模型及权重文件
 ├── nnunetplusplus.onnx           //ONNX模型文件
 ├── nnunetplusplus.om             //OM模型文件
@@ -20,7 +21,7 @@
 ├── README.md                     //快速上手指导，过程内容和本文大致相同
 ├── new.patch                     //修改源代码的补丁
 ├── requirements.txt              //环境依赖，由pip freeze > re.txt生成
-backup文件夹内
+backup文件夹内（该文件夹可能被打包上传至别处，请用户提前下载该backup文件）
 ├── nnUNet_preprocessed/          //待拷贝的实验配置文件
 ├── output-gpu/                   //在GPU上的全部推理结果，内含GPU精度结果
 ├── output-npu/                   //在NPU上的全部推理结果，内含NPU精度结果
@@ -28,6 +29,15 @@ backup文件夹内
 ├── perf_vision_batchsize_1_device_0.txt  //NPU上的性能结果
 └── perf_T4gpu_batchsize_1.txt            //GPU上的性能结果
 ```
+
+ **关键环境：**   
+| 依赖名 | 版本号 |
+| :------: | :------: |
+| CANN（使用atc转换OM时）  | 5.0.3和5.1.RC1.alpha001上通过 |
+| CANN（其他实验步骤）  | 在5.0.3、5.0.4和5.1.RC1.alpha001上通过 |
+| torch  | >=1.6.0 |
+| batchgenerators  | ==0.21 |
+
 ## 1 环境准备 
 
 ### 1.1 获取源代码
@@ -45,7 +55,7 @@ patch -p1 < ../new.patch  # 载入代码修改补丁
 pip install -e .
 pip install batchgenerators==0.21  # 该依赖十分关键，指定其版本手动安装一次
 
-# 您也可以通过requirements来安装依赖包，但不推荐该方法
+# 您也可以通过requirements来安装依赖包，但我们不推荐该方法
 pip install -r requirements.txt
 ```
 由于该模型需要将命令注册到环境中才能找到正确的函数入口，所以我们仍然需要一步pip来将代码注册到环境中。除此之外，每次将代码文件进行大幅度地增减时，“pip install -e .”都是必须的，否则很可能出现“import nnunet”错误。
@@ -156,6 +166,8 @@ python create_testset.py /home/hyp/environment/input/
 
 下载预训练过的[模型参数权重download models](https://github.com/MrGiovanni/UNetPlusPlus/tree/master/pytorch)，在environment下创建一个新的子文件夹download_models用于存放下载得到的压缩包，将该压缩包解压后得到五个文件夹及一个配置文件：fold_0, fold_1, fold_2, fold_3, fold_4, plans.pkl。
 
+本文教程日后可能会单独提供fold_0及plans.pkl的压缩包，如果有，用户可以自行下载使用。
+
 将其中的fold_0文件夹和plans.pkl拷贝至environment/RESULTS_FOLDER/nnUNet/3d_fullres/Task003_Liver/nnUNetPlusPlusTrainerV2__nnUNetPlansv2.1/下，模拟我们已经完成了训练过程，请提前创建相关子文件夹。
 ```
 cd environment
@@ -173,14 +185,18 @@ environment/RESULTS_FOLDER/nnUNet/3d_fullres/Task003_Liver/nnUNetPlusPlusTrainer
 ```
 
 #### 1.3.7 设置推理实验相关路径
-后续推理实验通常要使用多个路径参数，使用时十分容易造成混淆。因为在前文中我们已经设置了nnunet环境变量，所以我们可以认为该模型的相关路径都是稳定的，不会经常变动。为了让后续的实验更加便捷，我们可以在程序中设置好路径作为默认参数。
+后续推理实验通常要使用多个路径参数，使用时十分容易造成混淆。因为在前文中我们已经设置了nnunet环境变量，所以我们可以认为该模型的相关路径都是稳定的，不会经常变动。为了让后续的实验更加便捷，我们可以在程序中设置好路径作为默认参数。使用change_infer_path.py来完成这个操作。
+```
+python change_infer_path.py -fp1 INFERENCE_INPUT_FOLDER –fp2 INFERENCE_OUTPUT_FOLDER -fp3 INFERENCE_SHAPE_PATH
+#例：python change_infer_path.py -fp1 /home/hyp/environment/input/ -fp2 /home/hyp/environment/output/ -fp3 /home/hyp/environment/
 
-打开项目代码中的UNetPlusPlus/pytorch/nnunet/inference/infer_path.py，修改其中设定的几个变量，我们推荐将这些变量指向environment文件夹下，便于用户检索：
+```
+以上的三个路径参数的具体说明如下，我们推荐将这些路径指向environment文件夹内，便于用户检索：
  - INFERENCE_INPUT_FOLDER：存放待推理图像的文件夹。（该文件夹在1.3.5节中被创建）
  - INFERENCE_OUTPUT_FOLDER：推理完成后，存放推理结果的文件夹。（该文件夹在1.3.5节中被创建）
  - INFERENCE_SHAPE_PATH：存放文件all_shape.txt的目录。在后续实验过程中会被介绍到，在该目录下会生成一个all_shape.txt，存储着当前待推理图像的属性。这是一个中间结果文件，用户无需具体了解。
  
-最终的修改示例如下：
+最后，您可以打开项目代码中的UNetPlusPlus/pytorch/nnunet/inference/infer_path.py查看修改的结果，修改后的效果示例如下所示：
 ```
 INFERENCE_INPUT_FOLDER = '/home/hyp/environment/input/'
 INFERENCE_OUTPUT_FOLDER = '/home/hyp/environment/output/'
@@ -211,6 +227,8 @@ cp -rf /home/hyp/backup/output-npu/* /home/hyp/environment/output/
 ```
 python 3d_nested_unet_pth2onnx.py --file_path /home/hyp/environment/nnunetplusplus.onnx
 ```
+注：首次运行该程序时，将消耗比平时更多的时间。
+
 之后我们需要将onnx转化为om模型，先使用npu-smi info查看设备状态，确保device空闲后，执行以下命令。这将生成batch_size为1的om模型，其输入onnx文件为nnunetplusplus.onnx，输出om文件命名为nnunetplusplus，这将在当前路径下生成nnunetplusplus.om文件，后面的--input_format和--input_shape参数则指代了该模型的输入图像规格与尺寸。
 ```
 cd environment
@@ -264,15 +282,15 @@ source set_env.sh  # 激活NPU环境
 上节中使用的benchmark工具，对每张输入.bin会输出五个输出结果.bin文件，而只有其中之一是我们所需要的结果。我们需要修改程序脚本中的路径。找到项目UNetPlusPlus下的clear2345.sh，该脚本用于删除310输出结果中后缀带有2、3、4、5的冗余.bin文件（保留后缀带有1的.bin文件），并将所有的.bin文件都移动到同一个文件夹下（例如放置于device0卡的输出路径），便于后续的结果合并搜索指定子图结果。我们将该脚本中的rm命令参数替换为正确的310输出路径。之后的mv命令，用于将4卡的输出结果全部移动到1卡上，也要保持正确。该脚本在推理时才会用到，一份可用的示例如下：
 ```
 # 删除多余的输出.bin文件
-rm -rf /home/hyp/result/dumpOutput_device*/*_2.bin
-rm -rf /home/hyp/result/dumpOutput_device*/*_3.bin
-rm -rf /home/hyp/result/dumpOutput_device*/*_4.bin
-rm -rf /home/hyp/result/dumpOutput_device*/*_5.bin
+rm -rf ./result/dumpOutput_device*/*_2.bin
+rm -rf ./result/dumpOutput_device*/*_3.bin
+rm -rf ./result/dumpOutput_device*/*_4.bin
+rm -rf ./result/dumpOutput_device*/*_5.bin
 
 # 将其他文件夹的.bin结果移动到同一个目录下
-mv result/dumpOutput_device1/* result/dumpOutput_device0/
-mv result/dumpOutput_device2/* result/dumpOutput_device0/
-mv result/dumpOutput_device3/* result/dumpOutput_device0/
+mv ./result/dumpOutput_device1/* ./result/dumpOutput_device0/
+mv ./result/dumpOutput_device2/* ./result/dumpOutput_device0/
+mv ./result/dumpOutput_device3/* ./result/dumpOutput_device0/
 ```
 通常来说，您只需要对上述脚本设置一次即可。执行该脚本将多余的.bin文件删除。当所有设备都推理结束后，也请执行一次该脚本，确保所有结果都位于同一文件夹下。
 ```
@@ -287,7 +305,7 @@ python 3d_nested_unet_postprocess.py --file_path /home/hyp/result/dumpOutput_dev
 ```
 
 ### 2.8 重复实验
-截止目前，我们已经完成了1张编号为11的待推理图像的推理结果，删除benchmark工具生成的相关文件，释放硬盘空间。
+截止目前，我们已经完成了1张编号为11的待推理图像的推理结果，删除benchmark工具生成的相关文件，即result/dumpOutput_device*/，释放硬盘空间。
 
 若用户希望复现其他结果，请重复2.2至2.8的步骤，直至全部的验证集图片都推理完毕。
 
@@ -298,7 +316,7 @@ cp -rf /home/hyp/environment/output/* environment/RESULTS_FOLDER/nnUNet/3d_fullr
 ```
 请确保有27个结果图像已经位于上述的validation_raw文件夹中。然后使用nnUNet_train脚本命令开始评测精度，--validation_only表明我们不需要重新训练，直接进入验证步骤。
 ```
-nnUNet_train 3d_fullres nnUNetTrainerV2 003 0 --validation_only
+nnUNet_train 3d_fullres nnUNetPlusPlusTrainerV2 003 0 --validation_only
 ```
 注：首次运行nnUNet_train命令时，模型将开始对数据集解包，这将消耗比平时更多的时间。
 
@@ -324,16 +342,17 @@ summary.json
 ├── "task": "Task003_Liver"
 └── "timestamp"
 ```
+这是在第一折交叉验证下的结果，验证集图像只有27张，选用不同的交叉必然会导致不同的实验结果，但对精度达标的目标来说影响不大。
 
 ### 2.10 性能评测
-GPU上的性能使用onnx_infer.py来计算，需要在T4服务器上执行。
+GPU上的性能使用onnx_infer.py来计算，需要在T4服务器上执行。您也可以在从backup/perf_T4gpu_batchsize_1.txt中直接查看性能结果。
 ```
 python onnx_infer.py nnunetplusplus.onnx 1,1,128,128,128
 ```
-NPU上的性能使用benchmark工具来计算，需要在310服务器上执行。使用benchmark前需要激活set_env.sh环境变量
+NPU上的性能使用benchmark工具来计算，需要在310服务器上执行。使用benchmark前需要激活set_env.sh环境变量。您也可以在前面benchmark的输出文件夹result/下找到perf_vision_batchsize_1_device_0.txt文件，该文件由benchmark默认生成，在backup中我们也提供了一份实测样本，该结果与以下命令得到的结果几乎相同。
 ```
 source set_env.sh
-/benchmark.x86_64 -round=20 -om_path=nnunetplusplus.om -device_id=0 -batch_size=1
+./benchmark.x86_64 -round=20 -om_path=nnunetplusplus.om -device_id=0 -batch_size=1
 ```
 以下是实测结果，可供参考：
 ```
