@@ -35,13 +35,13 @@
 **相关链接：**
 | 名称和地址 | 说明 |
 | :------: | :------: |
-| (UNET官方代码仓)[https://github.com/MIC-DKFZ/nnUNet]  | UNET官方框架 |
-| (UNET++官方代码仓)[https://github.com/MrGiovanni/UNetPlusPlus/tree/master/pytorch]  | 依据UNET官方框架进行开发的UNET++官方代码 |
-| (MSD数据集（Medical Segmentation Decathlon）)[http://medicaldecathlon.com/]  | 医学十项全能数据集，内含10个子任务，本文只对任务3肝脏任务进行验证 |
-| (UNET++模型权重文件)[https://github.com/MrGiovanni/UNetPlusPlus/tree/master/pytorch]  | UNET++作者提供的模型权重，在其中“How to use UNet++”章节中存有链接 |
-| (权重文件download_models文件夹)[www.baidu.com]  | 本文所使用的，只节选了fold_0及plans.pkl的权重文件 |
-| (备份文件backup文件夹)[www.baidu.com]  | 本文所使用的，相关实验配置文件 |
-| (benchmark工具)[https://gitee.com/ascend/cann-benchmark/tree/master/infer]  | 在310上进行推理所需的可执行文件。或许msame也可以使用。 |
+| [UNET官方代码仓](https://github.com/MIC-DKFZ/nnUNet)  | UNET官方框架 |
+| [UNET++官方代码仓](https://github.com/MrGiovanni/UNetPlusPlus/tree/master/pytorch)  | 依据UNET官方框架进行开发的UNET++官方代码 |
+| [MSD数据集（Medical Segmentation Decathlon）](http://medicaldecathlon.com/)  | 医学十项全能数据集，内含10个子任务，本文只对任务3肝脏任务进行验证 |
+| [UNET++模型权重文件](https://github.com/MrGiovanni/UNetPlusPlus/tree/master/pytorch)  | UNET++作者提供的模型权重，在其中“How to use UNet++”章节中存有链接 |
+| [权重文件download_models文件夹](www.baidu.com)  | 本文所使用的，只节选了fold_0及plans.pkl的权重文件 |
+| [备份文件backup文件夹](www.baidu.com)  | 本文所使用的，相关实验配置文件 |
+| [benchmark工具](https://gitee.com/ascend/cann-benchmark/tree/master/infer)  | 在310上进行推理所需的可执行文件。或许msame也可以使用。 |
 
 **关键环境：**
 | 依赖名 | 版本号 |
