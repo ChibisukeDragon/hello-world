@@ -1,6 +1,6 @@
-# 3D nested_unet模型PyTorch离线推理指导
+# 3D_Nested_Unet模型PyTorch离线推理指导
 
-本教程的文件及其说明
+**本教程的文件及其说明**
 ```
 推理工具
 ├── benchmark.aarch64             //离线推理工具（适用ARM架构），可能需要用户自行编译获得
@@ -21,7 +21,10 @@
 ├── README.md                     //快速上手指导，过程内容和本文大致相同
 ├── new.patch                     //修改源代码的补丁
 ├── requirements.txt              //环境依赖，由pip freeze > re.txt生成
-backup文件夹内（该文件夹可能被打包上传至别处，请用户提前下载该backup文件）
+权重文件download_models文件夹（该文件夹可能被打包上传至别处，请用户提前下载该文件）
+├── Task003_Liver/nnUNetPlusPlusTrainerV2__nnUNetPlansv2.1/fold_0/*   //内含权重文件
+├── Task003_Liver/nnUNetPlusPlusTrainerV2__nnUNetPlansv2.1/plans.pkl  //实验配置文件
+备份文件backup文件夹（该文件夹可能被打包上传至别处，请用户提前下载该文件）
 ├── nnUNet_preprocessed/          //待拷贝的实验配置文件
 ├── output-gpu/                   //在GPU上的全部推理结果，内含GPU精度结果
 ├── output-npu/                   //在NPU上的全部推理结果，内含NPU精度结果
@@ -29,8 +32,18 @@ backup文件夹内（该文件夹可能被打包上传至别处，请用户提�
 ├── perf_vision_batchsize_1_device_0.txt  //NPU上的性能结果
 └── perf_T4gpu_batchsize_1.txt            //GPU上的性能结果
 ```
+**相关链接：**
+| 名称 | 说明 | 地址 |
+| :------: | :------: | :------: |
+| UNET官方代码仓  | UNET官方框架 | https://github.com/MIC-DKFZ/nnUNet |
+| UNET++官方代码仓  | 依据UNET官方框架进行开发的UNET++ | https://github.com/MrGiovanni/UNetPlusPlus/tree/master/pytorch |
+| MSD数据集（Medical Segmentation Decathlon）  | 医学十项全能数据集，内含10个子任务，本文只对任务3肝脏任务进行验证 | 本文1.3.2节 |
+| UNET++模型权重文件  | UNET++作者提供的模型权重 | 本文1.3.6节 |
+| 权重文件download_models文件夹  | 本文所使用的，只节选了fold_0及plans.pkl的权重文件 | XXX |
+| 备份文件backup文件夹  | 本文所使用的，相关实验配置文件 | XXX |
+| benchmark工具  | 在310上进行推理所需的可执行文件 | 本文1.4节 |
 
- **关键环境：**   
+**关键环境：**
 | 依赖名 | 版本号 |
 | :------: | :------: |
 | CANN（使用atc转换OM时）  | 在5.0.3和5.1.RC1.alpha001上通过 |
