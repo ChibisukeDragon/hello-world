@@ -1,4 +1,10 @@
-# 3D_Nested_Unet模型PyTorch离线推理指导
+# 3D_Nested_Unet
+
+This implements training of 3D_Nested_Unet on the MSD dataset, mainly modified from [pytorch/examples](https://github.com/MrGiovanni/UNetPlusPlus/tree/master/pytorch).
+
+## 3D_Nested_Unet Detail
+
+UNet++ differs from the original U-Net in three ways: 1) having convolution layers on skip pathways, which bridges the semantic gap between encoder and decoder feature maps; 2) having dense skip connections on skip pathways, which improves gradient flow; and 3) having deep supervision, which enables model pruning and improves or in the worst case achieves comparable performance to using only one loss layer.
 
 **本教程的文件及其说明**
 ```
@@ -247,7 +253,7 @@ python -m torch.distributed.launch --master_port=1234 --nproc_per_node=8 run/run
 ### 2.8 实验结果
 下面展示了部分实测结果。为方便展示，Dice的值全部乘以了100，以保持和官方相同。
 
-**评测结果：**   
+**评测结果：**
 | 实验方法 | 精度（Dice） | 性能（FPS） |
 | :------: | :------: | :------: |
 | UNET++官方汇报 | [Liver 1_Dice (val):95.80, Liver 2_Dice (val):65.60](https://github.com/MrGiovanni/UNetPlusPlus/tree/master/pytorch) | --- |
