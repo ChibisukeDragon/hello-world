@@ -9,26 +9,26 @@ UNet++ differs from the original U-Net in three ways: 1) having convolution laye
 **本教程的文件及其说明**
 ```
 部分程序文件
-├── set_env.sh                    //NPU环境变量
-├── change_bs.py                  //修改实验路径的程序
+├── set_env.sh                 //NPU环境变量
+├── change_bs.py               //修改batchsize的程序
 test文件夹
-├── train_full_1p.sh              //NPU 1P训练脚本
-├── train_full_8p.sh              //NPU 8P训练脚本
-├── train_performance_1p.sh       //NPU 1P性能测试脚本
-├── train_performance_8p.sh       //NPU 8P性能测试脚本
+├── train_full_1p.sh           //NPU 1P训练脚本
+├── train_full_8p.sh           //NPU 8P训练脚本
+├── train_performance_1p.sh    //NPU 1P性能测试脚本
+├── train_performance_8p.sh    //NPU 8P性能测试脚本
 其他文件
-├── README.md                     //指导
-├── new_npu.patch                 //修改源代码的补丁（修改为NPU版本）
-├── new_gpu.patch                 //修改源代码的补丁（修改为GPU版本，与本文无关）
-├── requirements.txt              //环境依赖，由pip freeze > requirements.txt生成
+├── README.md                  //指导
+├── new_npu.patch              //修改源代码的补丁（修改为NPU版本）
+├── new_gpu.patch              //修改源代码的补丁（修改为GPU版本，与本文无关）
+├── requirements.txt           //环境依赖，由pip freeze > requirements.txt生成
 其他附件（不在本代码仓中获得）
-├── v100_1p.log                   //GPU 1P训练日志
-├── v100_8p.log                   //GPU 8P训练日志
-├── 910A_1p.log                   //NPU 1P训练日志
-├── 910A_8p.log                   //NPU 8P训练日志
-├── v100_1p.prof                  //GPU 1P prof文件
-├── 910A_1p.prof                  //NPU 1P prof文件
-└── gpu_code.zip                  //GPU 1P及GPU 8P训练代码
+├── v100_1p.log                //GPU 1P训练日志
+├── v100_8p.log                //GPU 8P训练日志
+├── 910A_1p.log                //NPU 1P训练日志
+├── 910A_8p.log                //NPU 8P训练日志
+├── v100_1p.prof               //GPU 1P prof文件
+├── 910A_1p.prof               //NPU 1P prof文件
+└── gpu_code.zip               //GPU 1P及GPU 8P训练代码
 ```
 **关键环境：**
 | 依赖名 | 版本号 |
@@ -51,7 +51,7 @@ test文件夹
 ## 1 环境准备
 
 ### 1.1 获取源代码
-下载官方代码仓，并退回至指定版本，以保证代码稳定不变。本文以下教程与模型推理指导书保持相同。
+下载官方代码仓，并退回至指定版本，以保证代码稳定不变。
 ```
 cd /home/hyp/
 git clone https://github.com/MrGiovanni/UNetPlusPlus.git
@@ -60,7 +60,7 @@ git reset e145ba63862982bf1099cf2ec11d5466b434ae0b --hard
 ```
 
 ### 1.2 安装依赖，修改模型代码
-在执行下述命令前，请确保已经手动安装了NPU版本的torch和apex，否则将会安装CPU版本的torch
+在执行下述命令前，请确保已经手动安装了NPU版本的torch和apex，否则将会安装CPU版本的torch。
 ```
 cd /home/hyp/UNetPlusPlus/
 patch -p1 < ../new_npu.patch  # 载入代码修改补丁
@@ -71,7 +71,7 @@ pip install batchgenerators==0.21  # 该依赖十分关键，指定其版本再�
 # 您也可以通过requirements来安装依赖包，但我们不推荐该方法
 pip install -r requirements.txt
 ```
-patch命令的最后一个参数需要指定本仓中的new.patch文件的路径。由于该模型需要将命令注册到环境中才能找到正确的函数入口，所以我们仍然需要一步pip来将代码注册到环境中。除此之外，每次将代码文件进行大幅度地增减时，“pip install -e .”都是必须的，否则很可能出现“import nnunet”错误。
+patch命令的最后一个参数需要指定本仓中的new_npu.patch文件的路径。由于该模型需要将命令注册到环境中才能找到正确的函数入口，所以我们仍然需要一步pip来将代码注册到环境中。除此之外，每次将代码文件进行大幅度地增减时，“pip install -e .”都是必须的，否则很可能出现“import nnunet”错误。
 
 我们不推荐您使用requirements.txt的方式来安装环境，因为这很可能遗漏nnunet的注册步骤，使得后续实验无法进行。
 
@@ -145,7 +145,9 @@ environment/
 nnUNet_convert_decathlon_task -i Task03_Liver -p 8
 ```
 如果您的设备性能较差或者该命令在较长时间后都未结束，您可以将参数-p的数值调小，这将消耗更多的时间。
-
+```
+nnUNet_convert_decathlon_task -i Task03_Liver -p 1
+```
 注：若您在之后的实验过程中想要重置实验或者数据集发生严重问题（例如读取数据时遇到了EOF等读写错误），您可以将nnUNet_preprocessed、nnUNet_raw_data_base和RESULTS_FOLDER下的文件全部删除，并从本节开始复现后续过程。
 
 ### 1.6 实验计划与预处理
@@ -153,7 +155,7 @@ nnunet十分依赖数据集，这一步需要提取数据集的属性，例如�
 ```
 nnUNet_plan_and_preprocess -t 003 --verify_dataset_integrity
 ```
-我们观察到，该过程很可能意外中断却不给予用户提示信息，这在系统内存较小时会随机发生，请您确保该实验过程可以正常结束。如果您的设备性能较差或者较长时间后都未能正常结束，您可以改用下面的命令来降低系统占用，而这将显著提升该步骤的运行时间。实践来看，通过输入free -m命令，如果系统显示的available Mem低于30000或在30000左右，则我们推荐您使用下面的命令。
+我们观察到，该过程很可能意外中断却不给予用户提示信息，这在系统内存较小时会随机发生，请您确保该实验过程可以正常结束。如果您的设备性能较差或者较长时间后都未能正常结束，您可以改用下面的命令来降低系统占用，而这将显著提升该步骤的运行时间。实践来看，通过输入free -m命令，如果系统显示的available Mem低于30000或在30000左右，则我们推荐您改用下面的命令。
 ```
 nnUNet_plan_and_preprocess -t 003 --verify_dataset_integrity -tl 1 -tf 1
 ```
@@ -164,11 +166,11 @@ nnUNet_plan_and_preprocess -t 003 --verify_dataset_integrity -tl 1 -tf 1
 第0折全部验证集图像的编号（共27张，从小到大排序，实际程序读取顺序不明确）：
 3, 5, 11, 12, 17, 19, 24, 25, 27, 38, 40, 41, 42, 44, 51, 52, 58, 64, 70, 75, 77, 82, 101, 112, 115, 120, 128
 ```
-验证集图像自然不参与训练，但是是从训练集中划分出来的，上述编号的验证集图像的原始图像均来自于：environment/nnUNet_raw_data_base/nnUNet_raw_data/Task003_Liver/imagesTr/liver_XXX_0000.nii.gz，其中XXX即为图像编号。
+验证集图像自然不参与训练，但是是从训练集中划分出来的，上述编号的验证集图像的原始图像均来自训练集图像所在目录：environment/nnUNet_raw_data_base/nnUNet_raw_data/Task003_Liver/imagesTr/liver_XXX_0000.nii.gz，其中XXX即为图像编号。
 
 ## 2 模型训练
 
-### 2.1 关于修改训练时batchsize的方法@@@
+### 2.1 关于修改batchsize的方法@@@
 在完成1.6节时，UNET++模型中关于batchsize的设定便存储在了environment/nnUNet_preprocessed/Task003_Liver/nnUNetPlansv2.1_plans_3D.pkl中，默认值为2。使用本文提供的change_bs.py程序，将其中的batchsize修改为您想要的数值，例如修改为8：
 ```
 python change_bs.py 8
@@ -244,7 +246,7 @@ UNET++官方只提供了GPU单卡的训练代码，未提供GPU多卡的代码�
 ```
 export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7  # 指明了可用的GPU设备的编号为0至7
 ```
-使用最后使用如下命令，便可以开启GPU 8P的训练：
+最后使用如下命令，便可以开启GPU 8P的训练：
 ```
 python -m torch.distributed.launch --master_port=1234 --nproc_per_node=8 run/run_training_DDP.py 3d_fullres nnUNetPlusPlusTrainerV2_hypDDP 003 0 --dbs
 ```
@@ -266,3 +268,5 @@ python -m torch.distributed.launch --master_port=1234 --nproc_per_node=8 run/run
 备注：
 
 1.该模型的推理过程是单幅图像推理的，所以在训练结束后的验证阶段，只会有一块GPU/NPU被占用。
+
+2.请注意，我们只使用了fold 0。完整的实验应该是包含五折交叉验证的。
