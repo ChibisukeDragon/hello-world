@@ -285,7 +285,7 @@ python -m torch.distributed.launch --master_port=1234 --nproc_per_node=8 run/run
 
 **评测结果：**
 | 实验方法 | 精度：Liver 1_Dice | 精度：Liver 2_Dice | 性能（FPS） |
-| :------: | :------: | :------: |
+| :------: | :------: | :------: | :------: |
 | [UNET++官方汇报](https://github.com/MrGiovanni/UNetPlusPlus/tree/master/pytorch) | 95.80 | 65.60 | --- |
 | 使用作者提供的fold_0预训练权重 | 96.55 | 71.97 | --- |
 | GPU 1P bs=1 | 6.86 | 0.08 | 1.931 |
