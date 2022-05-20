@@ -22,6 +22,7 @@ test文件夹
 ├── new_npu.patch              //修改源代码的补丁（修改为NPU版本）
 ├── new_gpu.patch              //修改源代码的补丁（修改为GPU版本，与本文无关）
 ├── requirements.txt           //环境依赖，由pip freeze > requirements.txt生成
+├── requirements_gpu.txt       //GPU版本的环境依赖
 其他附件（不在本代码仓中获得）
 ├── v100_1p.log                //GPU 1P训练日志
 ├── v100_8p.log                //GPU 8P训练日志
@@ -186,7 +187,7 @@ nnUNet_train 3d_fullres nnUNetPlusPlusTrainerV2 Task003_Liver 0
 ```
 其中命令nnUNet_train代表使用nnUNet框架进行训练，参数3d_fullres指明使用3D全分辨率，参数nnUNetPlusPlusTrainerV2指明了使用的模型训练器，参数Task003_Liver指明了使用数据集003，最后的参数0代表本次为第0折验证（总共有5个交叉验证实验），这些设置全部遵循了UNET++的官方设置。具体的参数说明，可以在UNET官方代码仓中找到说明。如果想完全复现UNET++全部实验，你还需要将最后的参数设置分别设置为0、1、2、3和4，进行总计五次独立的交叉实验。
 
-如果想查看最后的训练结果和精度，请查阅2.4节。您也可以直接使用下面的脚本来一次性完成两个操作，即启动NPU 1P训练和精度测试。
+如果想查看最后的训练结果和精度，请查阅2.4节。您也可以直接使用下面的脚本来一次性完成两个操作，即启动NPU 1P训练和查看精度。
 ```
 bash test/train_performance_1p.sh
 ```
@@ -199,7 +200,7 @@ python -m torch.distributed.launch --master_port=1234 --nproc_per_node=8 run_tra
 ```
 多卡训练不再以nnUNet_train命令作为启动方式，而是直接调用多卡运行程序run_training_DDP2.py来启动。参数master_port指明了通信端口号，参数nproc_per_node指明了使用的多卡的卡数量，参数003指明同样使用数据集003，参数0代表本次为第0折验证（总共有5个交叉验证实验），最后的参数--dbs则指明我们的batchsize需要平分到所有的设备上。以batchsize=16 nproc_per_node=8为例，则说明每个设备上的batchsize为16/8=2。关于多卡训练的更多解释，请查阅2.7节内容。
 
-如果想查看最后的训练结果和精度，请查阅2.4节。您也可以直接使用下面的脚本来一次性完成两个操作，即启动NPU 8P训练和精度测试。
+如果想查看最后的训练结果和精度，请查阅2.4节。您也可以直接使用下面的脚本来一次性完成两个操作，即启动NPU 8P训练和查看精度。
 ```
 bash test/train_performance_1p.sh
 ```
@@ -258,7 +259,7 @@ bash test/train_performance_1p.sh
 和上一节一样，使用下面的命令开启多卡性能测试：
 ```
 # 注意，我们将倒数第二个参数的值从0修改为了1，这样便不会覆盖RESULT_FOLDER中fold 0的结果文件
-python -m torch.distributed.launch --master_port=1234 --nproc_per_node=8 run_training_DDP.py 3d_fullres nnUNetPlusPlusTrainerV2_hypDDP 003 1 --dbs --other_use fps
+python -m torch.distributed.launch --master_port=1234 --nproc_per_node=8 run_training_DDP2.py 3d_fullres nnUNetPlusPlusTrainerV2_hypDDP 003 1 --dbs --other_use fps
 ```
 您同样可以直接使用下面的脚本来获取性能结果。
 ```
@@ -283,17 +284,18 @@ python -m torch.distributed.launch --master_port=1234 --nproc_per_node=8 run/run
 下面展示了部分实测结果。为方便展示，Dice的值全部乘以了100，以保持和官方相同。FPS=1*batchsize/平均每个step时间，step时间指数据经过模型并经过一次反向传播所需要的时间。GPU设备使用的是V100。
 
 **评测结果：**
-| 实验方法 | 精度（Dice） | 性能（FPS） |
+| 实验方法 | 精度：Liver 1_Dice | 精度：Liver 2_Dice | 性能（FPS） |
 | :------: | :------: | :------: |
-| UNET++官方汇报 | [Liver 1_Dice (val):95.80, Liver 2_Dice (val):65.60](https://github.com/MrGiovanni/UNetPlusPlus/tree/master/pytorch) | --- |
-| 使用作者提供的fold_0预训练权重 | Liver 1_Dice (val):96.55, Liver 2_Dice (val):71.97 | --- |
-| GPU 1P bs=1 | Liver 1_Dice (val):06.86, Liver 2_Dice (val):00.08 | 1.931 |
+| [UNET++官方汇报](https://github.com/MrGiovanni/UNetPlusPlus/tree/master/pytorch) | 95.80 | 65.60 | --- |
+| 使用作者提供的fold_0预训练权重 | 96.55 | 71.97 | --- |
+| GPU 1P bs=1 | 6.86 | 0.08 | 1.931 |
 | GPU 1P bs=2 | --- | 1.450 |
-| GPU 8P bs=8 | Liver 1_Dice (val):96.59, Liver 2_Dice (val):71.43 | 6.922 |
-| GPU 8P bs=16 | Liver 1_Dice (val):96.68, Liver 2_Dice (val):70.43 | 6.283 |
-| NPU 1P bs=1 | Liver 1_Dice (val):06.02, Liver 2_Dice (val):00.05 | 2.477 |
+| GPU 8P bs=8 | 96.59 | 71.43 | 6.922 |
+| GPU 8P bs=16 | 96.68 | 70.43 | 6.283 |
+| NPU 1P bs=1 | 6.02 | 00.05 | 2.477 |
 | NPU 1P bs=2 | --- | 2.509 |
-| NPU 8P bs=8 | Liver 1_Dice (val):96.67, Liver 2_Dice (val):71.42 | 4.209 |
+| NPU 8P bs=8 | 96.67 | 71.42 | 4.209 |
+| NPU 8P bs=16 | 96.67 | 71.42 | 4.209 |
 
 备注：
 
@@ -309,9 +311,9 @@ nnUNet_train 3d_fullres nnUNetPlusPlusTrainerV2 Task003_Liver $FOLD
 done
 ```
 
-4.如果训练一定epoch后被中断，可以在使用nnUNet_train命令时，添加额外的参数--continue_training来继续上次的训练进度。
+4.如果训练一定epoch后被中断，可以在启动训练时，添加额外的参数--continue_training来继续上次的训练进度。
 
-5.可以在使用nnUNet_train命令时，添加额外的参数--validation_only，这会使模型跳过训练，直接读取RESULTS_FOLDER内的model_latest.model来进行验证集的精度测试。如果您认为训练的周期实在过长，可以在中间的某个epoch终止训练，并通过该条方法来跳过训练epoch判断，读取权重后直接进行验证推理。模型每50个epoch会存储一次权重，您可以事先通过观察loss曲线图中绿线的趋势来判断模型是否训练良好，按实际测试来看，绿线最终能达到约右侧纵轴的0.9左右处。
+5.可以在启动训练时，添加额外的参数--validation_only，这会使模型跳过训练，直接读取RESULTS_FOLDER内的model_latest.model来进行验证集的精度测试。如果您认为训练的周期实在过长，可以在中间的某个epoch终止训练，并通过该条方法来跳过训练epoch判断，读取权重后直接进行验证推理。模型每50个epoch会存储一次权重，您可以事先通过观察loss曲线图中绿线的趋势来判断模型是否训练良好，按实际测试来看，绿线最终能达到约右侧纵轴的0.9左右处。
 
 6.该模型的验证集测试，会对27张图像进行推理。单张图像的推理时间在10分钟-45分钟不等。在验证集上的推理时间预计为6h左右，在GPU上耗时更久。
 
