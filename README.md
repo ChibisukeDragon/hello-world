@@ -9,19 +9,19 @@ UNet++ differs from the original U-Net in three ways: 1) having convolution laye
 **本教程的文件及其说明**
 ```
 程序及脚本文件
-├── set_env.sh                 //NPU环境变量
 ├── change_bs.py               //修改batchsize的程序
 ├── get_dice_result.py         //读取dice结果的程序
 test文件夹
+├── env_npu.sh                 //NPU环境变量
 ├── train_full_1p.sh           //NPU 1P训练脚本
 ├── train_full_8p.sh           //NPU 8P训练脚本
 ├── train_performance_1p.sh    //NPU 1P性能测试脚本
 ├── train_performance_8p.sh    //NPU 8P性能测试脚本
 其他文件
-├── README.md                  //指导
+├── README.md                  //本文的上手指导
 ├── new_npu.patch              //修改源代码的补丁（修改为NPU版本）
-├── new_gpu.patch              //修改源代码的补丁（修改为GPU版本，与本文无关）
-├── requirements.txt           //环境依赖，由pip freeze > requirements.txt生成
+├── new_gpu.patch              //修改源代码的补丁（修改为GPU版本，与本文教程无关）
+├── requirements.txt           //NPU版本的环境依赖，由pip freeze > requirements.txt生成
 ├── requirements_gpu.txt       //GPU版本的环境依赖
 其他附件（不在本代码仓中获得）
 ├── v100_1p.log                //GPU 1P训练日志
@@ -30,7 +30,7 @@ test文件夹
 ├── 910A_8p.log                //NPU 8P训练日志
 ├── v100_1p.prof               //GPU 1P prof文件
 ├── 910A_1p.prof               //NPU 1P prof文件
-└── gpu_code.zip               //GPU 1P及GPU 8P训练代码
+└── gpu_code.tar               //GPU 1P及GPU 8P训练代码
 ```
 **关键环境：**
 | 依赖名 | 版本号 |
@@ -163,16 +163,16 @@ nnUNet_plan_and_preprocess -t 003 --verify_dataset_integrity -tl 1 -tf 1
 ```
 注：若在后续的实验步骤中出现形如“RuntimeError: Expected index [2, 1, 128, 128, 128] to be smaller than self [2, 3, 8, 8, 8] apart from dimension 1”的错误，请删除environment/nnUNet_preprocessed/Task003_Liver/以及environment/nnUNet_raw_data_base/nnUNet_cropped_data/下的所有文件，然后重新完成本节内容。
 
-同时，本节内容也划分出了训练集、验证集和测试集。在environment/nnUNet_preprocessed/Task003_Liver/dataset.json中记录了训练集和测试集的划分，而在相关.pkl中存储了训练集和验证集的划分。本模型采取了五折交叉验证，受限于部分因素，我们暂且只对第0折实验来讲解。对于第0折实验，其验证集的划分如下：
+同时，本节内容也划分出了训练集、验证集和测试集。在environment/nnUNet_preprocessed/Task003_Liver/dataset.json中记录了训练集和测试集的划分，而在相关.pkl中存储了训练集和验证集的划分。本模型采取了五折交叉验证，受限于部分因素，我们暂且只对第1折实验来讲解。对于第1折实验，其验证集的划分如下：
 ```
-第0折全部验证集图像的编号（共27张，从小到大排序，实际程序读取顺序不明确）：
+第1折（fold 0）全部验证集图像的编号（共27张，从小到大排序，实际程序读取顺序不明确）：
 3, 5, 11, 12, 17, 19, 24, 25, 27, 38, 40, 41, 42, 44, 51, 52, 58, 64, 70, 75, 77, 82, 101, 112, 115, 120, 128
 ```
 验证集图像自然不参与训练，但是是从训练集中划分出来的，上述编号的验证集图像的原始图像均来自训练集图像所在目录：environment/nnUNet_raw_data_base/nnUNet_raw_data/Task003_Liver/imagesTr/liver_XXX_0000.nii.gz，其中XXX即为图像编号。
 
 ## 2 模型训练
 
-### 2.1 关于修改batchsize的方法@@@
+### 2.1 关于修改batchsize的方法
 在完成1.6节时，UNET++模型中关于batchsize的设定便存储在了environment/nnUNet_preprocessed/Task003_Liver/nnUNetPlansv2.1_plans_3D.pkl中，默认值为2。使用本文提供的change_bs.py程序可以将其中的batchsize修改为您想要的数值，第一个参数-path接受文件夹nnUNet_preprocessed的所在路径，第二个参数-size接受修改后的batchsize值，将batchsize修改为8的示例如下：
 ```
 python change_bs.py -path /home/heyupeng/environment/ -size 8
@@ -196,9 +196,9 @@ bash test/train_performance_1p.sh
 使用2.1节的内容，将batchsize修改为8或16（对应于拥有8块NPU 10GB显存空间或8块NPU 20GB显存空间）。UNET++模型的8P训练启动命令为：
 ```
 python -m torch.distributed.launch --master_port=1234 --nproc_per_node=8 run_training_DDP.py 3d_fullres nnUNetPlusPlusTrainerV2_hypDDP 003 0 --dbs
-# 其中的run_training_DDP2.py位于项目目录UNetPlusPlus/pytorch/nnunet/run/下。
+# 其中的run_training_DDP.py位于项目目录UNetPlusPlus/pytorch/nnunet/run/下。
 ```
-多卡训练不再以nnUNet_train命令作为启动方式，而是直接调用多卡运行程序run_training_DDP2.py来启动。参数master_port指明了通信端口号，参数nproc_per_node指明了使用的多卡的卡数量，参数003指明同样使用数据集003，参数0代表本次为第0折验证（总共有5个交叉验证实验），最后的参数--dbs则指明我们的batchsize需要平分到所有的设备上。以batchsize=16 nproc_per_node=8为例，则说明每个设备上的batchsize为16/8=2。关于多卡训练的更多解释，请查阅2.7节内容。
+多卡训练不再以nnUNet_train命令作为启动方式，而是直接调用多卡运行程序run_training_DDP.py来启动。参数master_port指明了通信端口号，参数nproc_per_node指明了使用的多卡的卡数量，参数003指明同样使用数据集003，参数0代表本次为第0折验证（总共有5个交叉验证实验），最后的参数--dbs则指明我们的batchsize需要平分到所有的设备上。以batchsize=16 nproc_per_node=8为例，则说明每个设备上的batchsize为16/8=2。关于多卡训练的更多解释，请查阅2.7节内容。
 
 如果想查看最后的训练结果和精度，请查阅2.4节。您也可以直接使用下面的脚本来一次性完成两个操作，即启动NPU 8P训练和查看精度。
 ```
@@ -259,7 +259,7 @@ bash test/train_performance_1p.sh
 和上一节一样，使用下面的命令开启多卡性能测试：
 ```
 # 注意，我们将倒数第二个参数的值从0修改为了1，这样便不会覆盖RESULT_FOLDER中fold 0的结果文件
-python -m torch.distributed.launch --master_port=1234 --nproc_per_node=8 run_training_DDP2.py 3d_fullres nnUNetPlusPlusTrainerV2_hypDDP 003 1 --dbs --other_use fps
+python -m torch.distributed.launch --master_port=1234 --nproc_per_node=8 run_training_DDP.py 3d_fullres nnUNetPlusPlusTrainerV2_hypDDP 003 1 --dbs --other_use fps
 ```
 您同样可以直接使用下面的脚本来获取性能结果。
 ```
