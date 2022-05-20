@@ -289,13 +289,15 @@ python -m torch.distributed.launch --master_port=1234 --nproc_per_node=8 run/run
 | [UNET++官方汇报](https://github.com/MrGiovanni/UNetPlusPlus/tree/master/pytorch) | 95.80 | 65.60 | --- |
 | 使用作者提供的fold_0预训练权重 | 96.55 | 71.97 | --- |
 | GPU 1P bs=1 | 6.86 | 0.08 | 1.931 |
-| GPU 1P bs=2 | --- | 1.450 |
+| GPU 1P bs=2 | --- | --- | 1.450 |
 | GPU 8P bs=8 | 96.59 | 71.43 | 6.922 |
 | GPU 8P bs=16 | 96.68 | 70.43 | 6.283 |
-| NPU 1P bs=1 | 6.02 | 00.05 | 2.477 |
-| NPU 1P bs=2 | --- | 2.509 |
+| NPU 1P bs=1 | 6.02 | 0.05 | 2.477 |
+| NPU 1P bs=2 | --- | --- | 2.509 |
 | NPU 8P bs=8 | 96.67 | 71.42 | 4.209 |
-| NPU 8P bs=16 | 96.67 | 71.42 | 4.209 |
+| NPU 8P bs=16 | --- | --- | 5.247 |
+
+注：测试8P性能时，程序只会输出每张卡上的结果。因此得到的也是8P情况下单卡的性能，并且结果会输出8次。您需要将结果乘以8，以得到真实的8P性能。
 
 备注：
 
