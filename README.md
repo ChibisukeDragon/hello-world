@@ -189,7 +189,7 @@ nnUNet_train 3d_fullres nnUNetPlusPlusTrainerV2 Task003_Liver 0
 
 如果想查看最后的训练结果和精度，请查阅2.4节。您也可以直接使用下面的脚本来一次性完成两个操作，即启动NPU 1P训练和查看精度。
 ```
-bash test/train_performance_1p.sh
+bash test/train_full_1p.sh
 ```
 
 ### 2.3 NPU 8P训练
@@ -202,7 +202,7 @@ python -m torch.distributed.launch --master_port=1234 --nproc_per_node=8 run_tra
 
 如果想查看最后的训练结果和精度，请查阅2.4节。您也可以直接使用下面的脚本来一次性完成两个操作，即启动NPU 8P训练和查看精度。
 ```
-bash test/train_performance_1p.sh
+bash test/train_full_8p.sh
 ```
 注：多卡代码同样是试验性的，在训练过程中，用户可以自行提前终止训练。但是如果运行过程中出现了异常报错，这将会有很大可能会出现僵尸进程，占据着NPU的显存空间和master_port=1234，使得用户受限于显存空间不足或端口号被占用而无法开启新的多卡实验。对于第一种情况，通过使用"npu-smi info"命令来观察最后一列的数值，通常表现为"20000 / 32768"。对于第二种情况，使用"ps -aux | grep python"或"ps -aux | grep nnUNet"，观察是否存在大量的进程残留。遗憾的是，我们无法通过"kill"命令来杀死这些进程或其父进程，只能采用"reboot"命令来重启设备。
 
